@@ -13,7 +13,7 @@
         props: ['path', 'name'],
         data() {
             return {
-                id: '/' + this.path + '/' + this.name + '.html',
+                id: '/my-blog/' + this.path + '/' + this.name + '.html',
                 title: this.name
             }
         }

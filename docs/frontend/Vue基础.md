@@ -221,7 +221,7 @@ var Util = function () {
   "name": "jerry",
   "age": 31,
   "gender": "M",
-  "url": "http://blog.bjheysend.com"
+  "url": "https://tanhaoran.github.io/my-blog"
 }
 ```
 
