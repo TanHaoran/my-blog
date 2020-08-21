@@ -4,6 +4,7 @@ const pluginsConfig = require('../../config/pluginConfig');
 const headConfig = require('../../config/headConfig');
 
 module.exports = {
+    base: "/my-blog/",
     title: '林山夕风',
     description: '林山夕风的博客,md文档,技术博客',
     // 浏览器图标
