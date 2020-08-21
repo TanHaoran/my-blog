@@ -186,23 +186,23 @@ public class ArrayQueue<E> implements Queue<E> {
 
 当队列开始为空的时候，实际上 `front` 和 `tail` 应当都指向索引为0的位置，所以可以通过 `front == tail` 来进行判断队列是否为空。
 
-![队列为空](https://raw.githubusercontent.com/TanHaoran/my-blog/master/LoopQueue.jpg)
+![队列为空](https://yjtravel-public.oss-cn-beijing.aliyuncs.com/my-blog/structure/LoopQueue.png)
 
 这样当一些列入队操作和出队操作后，队首元素的前面是有可能有空位置的，因为可能由于出队操作 `front` 并不指向索引为0的位置。
 
-![队列前面有空位置](https://raw.githubusercontent.com/TanHaoran/my-blog/master/LoopQueue2.jpg)
+![队列前面有空位置](https://yjtravel-public.oss-cn-beijing.aliyuncs.com/my-blog/structure/LoopQueue2.png)
 
 此时如果 `front` 已经在队尾的位置，这时候再进行入队操作的时候， 应当怎么办呢？
 
-![队尾循环到前面](https://raw.githubusercontent.com/TanHaoran/my-blog/master/LoopQueue3.jpg)
+![队尾循环到前面](https://yjtravel-public.oss-cn-beijing.aliyuncs.com/my-blog/structure/LoopQueue3.png)
 
 这时候在添加元素的时候， `front` 就不能再进行加1的操作了，而是应当循环到了索引为0的位置，也就是应当进行 `tail = (tail + 1) % size ` 的操作。
 
-![队尾循环到前面](https://raw.githubusercontent.com/TanHaoran/my-blog/master/LoopQueue4.jpg)
+![队尾循环到前面](https://yjtravel-public.oss-cn-beijing.aliyuncs.com/my-blog/structure/LoopQueue4.png)
 
 如果再继续入队操作，直到 `tail` 和 `front` 的索引只差1的时候，为了不和前面判断队列是否为空有冲突，所以这时候就应当是队列放满的情况，也就是通过 `tail + 1 == front` 来判断队列是否放满，这样也就浪费了一个空间。
 
-![队尾循环到前面](https://raw.githubusercontent.com/TanHaoran/my-blog/master/LoopQueue5.jpg)
+![队尾循环到前面](https://yjtravel-public.oss-cn-beijing.aliyuncs.com/my-blog/structure/LoopQueue5.png)
 
 ### 2、实现
 
