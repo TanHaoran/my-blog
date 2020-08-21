@@ -396,4 +396,118 @@ null
 
 例如：
 
+```java
+public class EscapeAnalysisTest {
+
+    public static void main(String[] args) throws Exception {
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 50000000; i++) {//5000万次---5000万个对象
+            allocate();
+        }
+        System.out.println((System.currentTimeMillis() - start) + " ms");
+        Thread.sleep(600000);
+    }
+
+    static void allocate() {//逃逸分析（不会逃逸出方法）
+        //这个myObject引用没有出去，也没有其他方法使用
+        MyObject myObject = new MyObject(2020, 2020.6);
+    }
+
+    static class MyObject {
+        int a;
+        double b;
+
+        MyObject(int a, double b) {
+            this.a = a;
+            this.b = b;
+        }
+    }
+}
+```
+
+这段代码在调用的过程中 `Myboject` 这个对象属于不可逃逸，`JVM` 可以做栈上分配。
+
+开启逃逸分析，启动参数中配置：`-XX:+DoEscapeAnalysis` ，运行结果：
+
+```console
+5 ms
+```
+
+关闭逃逸分析，启动参数中配置：`-XX:-DoEscapeAnalysis` ，运行结果：
+
+```console
+237 ms
+```
+
+测试结果可见，开启逃逸分析对代码的执行性能有很大的影响！那为什么有这个影响？
+
+#### (2) 逃逸分析
+
+如果是 `逃逸分析` 出来的对象可以在 `栈` 上分配的话，那么该对象的生命周期就跟随线程了，就不需要垃圾回收，如果是频繁的调用此方法则可以得到很大的性能提高。
+
+采用了 `逃逸分析` 后，满足逃逸的对象在栈上分配。
+
+没有开启 `逃逸分析`，对象都在 `堆` 上分配，会频繁触发垃圾回收（垃圾回收会影响系统性能），导致代码运行慢。
+
+还是上面的程序，开启 `GC` 打印日志：`-XX:+PrintGC`，开启逃逸分析的执行：
+
+```console
+5 ms
+```
+
+关闭逃逸分析的执行：
+
+```console
+[GC (Allocation Failure)  65536K->832K(251392K), 0.0015792 secs]
+[GC (Allocation Failure)  66368K->864K(251392K), 0.0009692 secs]
+[GC (Allocation Failure)  66400K->784K(251392K), 0.0006511 secs]
+[GC (Allocation Failure)  66320K->784K(316928K), 0.0008088 secs]
+[GC (Allocation Failure)  131856K->768K(316928K), 0.0012634 secs]
+[GC (Allocation Failure)  131840K->816K(438272K), 0.0006588 secs]
+[GC (Allocation Failure)  262960K->664K(438272K), 0.0016895 secs]
+[GC (Allocation Failure)  262808K->664K(700928K), 0.0004302 secs]
+287 ms
+```
+
+可以看到关闭了 `逃逸分析`，`JVM` 在频繁的进行垃圾回收（`GC`），正是这一块的操作导致性能有较大的差别。
+
+### 2、对象优先在Eden 区分配
+
+大多数情况下，对象在新生代 `Eden` 区中分配。当 `Eden` 区没有足够空间分配时，虚拟机将发起一次 `Minor GC`。
+
+### 3、大对象直接进入老年代
+
+大对象就是指需要大量连续内存空间的 `Java 对象`，最典型的大对象便是那种很长的字符串，或者元素数量很庞大的数组。
+
+大对象对虚拟机的内存分配来说就是一个不折不扣的坏消息，比遇到一个大对象更加坏的消息就是遇到一群“朝生夕灭”的“短命大对象”，我们写程序的时候应注意避免。
+
+在 `JVM` 中要避免大对象的原因是，在分配空间时，它容易导致内存明明还有不少空间时就提前触发垃圾收集，以获取足够的连续空间才能安置好它们。
+
+而当复制对象时，大对象就意味着高额的内存复制开销。
+
+`HotSpot` 虚拟机提供了 `-XX:PretenureSizeThreshold` 参数，指定大于该设置值的对象直接在老年代分配，这样做的目的就是避免在 `Eden` 区及两个 `Survivor` 区之间来回复制，产生大量的内存复制操作。这样做的目的：1.避免大量内存复制，2.避免明明内存有空间进行分配而提前进行的垃圾回收。
+
+`PretenureSizeThreshold` 参数只对 `Serial` 和 `ParNew` 两款收集器有效。设置例如：`-XX:PretenureSizeThreshold=4m`
+
+### 4、长期存活对象进入老年区
+
+`HotSpot` 虚拟机中多数收集器都采用了分代收集来管理堆内存，那内存回收时就必须能决策哪些存活对象应当放在新生代，哪些存活对象放在老年代中。为做到这点，虚拟机给每个对象定义了一个对象年龄(`Age`)计数器，存储在对象头中。
+
+![长期存活对象进入老年区](https://yjtravel-public.oss-cn-beijing.aliyuncs.com/my-blog/enjoy3/jvm20.png)
+
+如果对象在 `Eden` 出生并经过第一次 `Minor GC` 后仍然存活，并且能被 `Survivor` 容纳的话，将被移动到 `Survivor` 空间中，并将对象年龄设为 1，对象在 `Survivor` 区中每熬过一次 `Minor GC`，年龄就增加 1，当它的年龄增加到一定程度（并发的垃圾回收器默认为 15），`CMS` 是 6 时，就会被晋升到 `老年代` 中。
+-XX:MaxTenuringThreshold 调整
+
+### 5、对象年龄动态判定
+
+为了能更好地适应不同程序的内存状况，虚拟机并不是永远地要求对象的年龄必须达到了 `MaxTenuringThreshold` 才能晋升老年代，如果在 `Survivor` 空间中相同年龄所有对象大小的总和大于 `Survivor` 空间的一半，年龄大于或等于该年龄的对象就可以直接进入 `老年代`，无须等到 `MaxTenuringThreshold` 中要求的年龄。
+
+### 6、空间分配担保
+
+在发生 `Minor GC` 之前，虚拟机会先检查 `老年代` 最大可用的连续空间是否大于 `新生代` 所有对象总空间，如果这个条件成立，那么 `Minor GC` 可以确保是安全的。如果不成立，则虚拟机会查看 `HandlePromotionFailure` 设置值是否允许担保失败。如果允许，那么会继续检查 `老年代` 最大可用的连续空间是否大于历次晋升到 `老年代` 对象的平均大小，如果大于，将尝试着进行一次 `Minor GC`，尽管这次 `Minor GC` 是有风险的，如果担保失败则会进行一次 `Full GC`；如果小于，或者 `HandlePromotionFailure` 设置不允许冒险，那这时也要改为进行一次 `Full GC`。
+
+### 7、本地线程分配缓冲
+
+见文章开头讲到的“分配缓冲”。
+
 <Valine></Valine>
